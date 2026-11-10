@@ -1,5 +1,3 @@
-Assets/Scripts/BasketballController.cs
-
 using UnityEngine;
 
 public class BasketballController : MonoBehaviour
