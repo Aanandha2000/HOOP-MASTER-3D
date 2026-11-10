@@ -1,0 +1,288 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>HOOP MASTER 3D</title>
+<style>
+body {
+  margin: 0;
+  overflow: hidden;
+  background: #111;
+  font-family: Arial;
+  color: white;
+}
+#score {
+  position: absolute;
+  top: 15px;
+  left: 15px;
+  font-size: 22px;
+  background: #111b;
+  padding: 12px;
+  border-radius: 10px;
+}
+#controls {
+  position: absolute;
+  bottom: 20px;
+  width: 100%;
+  display: flex;
+  justify-content: space-around;
+  align-items: center;
+}
+button {
+  background: #ff7900;
+  color: white;
+  border: 0;
+  border-radius: 14px;
+  padding: 18px;
+  font-size: 17px;
+  font-weight: bold;
+  touch-action: none;
+}
+#move {
+  display: grid;
+  grid-template-columns: 55px 55px 55px;
+  gap: 5px;
+}
+#move button { padding: 12px; }
+#shoot { background: #168b42; }
+</style>
+</head>
+<body>
+
+<div id="score">HOOP MASTER 3D<br>
+Score: <span id="points">0</span></div>
+
+<div id="controls">
+  <div id="move">
+    <span></span><button data-move="up">▲</button><span></span>
+    <button data-move="left">◀</button>
+    <button data-move="down">▼</button>
+    <button data-move="right">▶</button>
+  </div>
+  <button id="shoot">SHOOT 🏀</button>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
+<script>
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x182b40);
+
+const camera = new THREE.PerspectiveCamera(
+  60, innerWidth / innerHeight, 0.1, 100
+);
+camera.position.set(0, 7, 13);
+camera.lookAt(0, 1, -2);
+
+const renderer = new THREE.WebGLRenderer({
+  antialias: true
+});
+renderer.setSize(innerWidth, innerHeight);
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+document.body.appendChild(renderer.domElement);
+
+scene.add(new THREE.HemisphereLight(0xffffff, 0x555555, 2));
+
+const light = new THREE.DirectionalLight(0xffffff, 2);
+light.position.set(5, 10, 5);
+scene.add(light);
+
+// Basketball court
+const court = new THREE.Mesh(
+  new THREE.BoxGeometry(14, 0.2, 24),
+  new THREE.MeshStandardMaterial({color: 0xb8753e})
+);
+court.position.y = -0.1;
+scene.add(court);
+
+// Court markings
+function line(x1,z1,x2,z2) {
+  const points = [
+    new THREE.Vector3(x1,0.015,z1),
+    new THREE.Vector3(x2,0.015,z2)
+  ];
+  const geometry = new THREE.BufferGeometry()
+    .setFromPoints(points);
+  scene.add(new THREE.Line(
+    geometry,
+    new THREE.LineBasicMaterial({color: 0xffffff})
+  ));
+}
+line(-7,-12,7,-12);
+line(-7,12,7,12);
+line(-7,-12,-7,12);
+line(7,-12,7,12);
+line(-7,0,7,0);
+
+// Hoop and backboard
+const board = new THREE.Mesh(
+  new THREE.BoxGeometry(2,1.1,0.12),
+  new THREE.MeshStandardMaterial({color:0xffffff})
+);
+board.position.set(0,4,-8.2);
+scene.add(board);
+
+const rim = new THREE.Mesh(
+  new THREE.TorusGeometry(0.65,0.06,12,32),
+  new THREE.MeshStandardMaterial({color:0xff5500})
+);
+rim.rotation.x = Math.PI / 2;
+rim.position.set(0,3.1,-7.65);
+scene.add(rim);
+
+const pole = new THREE.Mesh(
+  new THREE.BoxGeometry(0.2,4,0.2),
+  new THREE.MeshStandardMaterial({color:0x333333})
+);
+pole.position.set(0,1.8,-8.8);
+scene.add(pole);
+
+// Player
+const player = new THREE.Group();
+
+const body = new THREE.Mesh(
+  new THREE.CylinderGeometry(0.35,0.4,1.2,16),
+  new THREE.MeshStandardMaterial({color:0x1769d2})
+);
+body.position.y = 1;
+player.add(body);
+
+const head = new THREE.Mesh(
+  new THREE.SphereGeometry(0.28,16,16),
+  new THREE.MeshStandardMaterial({color:0xd99a6c})
+);
+head.position.y = 1.85;
+player.add(head);
+
+player.position.set(0,0,5);
+scene.add(player);
+
+// Basketball
+const ball = new THREE.Mesh(
+  new THREE.SphereGeometry(0.25,24,24),
+  new THREE.MeshStandardMaterial({color:0xe87516})
+);
+scene.add(ball);
+
+let points = 0;
+let shooting = false;
+let velocity = new THREE.Vector3();
+let previousZ = 5;
+let scored = false;
+
+const keys = {
+  up:false, down:false, left:false, right:false
+};
+
+function updateBall() {
+  if (!shooting) {
+    ball.position.set(
+      player.position.x,
+      1.35,
+      player.position.z - 0.65
+    );
+  }
+}
+
+function shoot() {
+  if (shooting) return;
+
+  shooting = true;
+  scored = false;
+  previousZ = ball.position.z;
+
+  velocity.set(
+    -player.position.x * 0.12,
+    6.5,
+    -10
+  );
+}
+
+document.getElementById("shoot").onclick = shoot;
+
+document.querySelectorAll("[data-move]").forEach(btn => {
+  const direction = btn.dataset.move;
+
+  btn.addEventListener("pointerdown", e => {
+    e.preventDefault();
+    keys[direction] = true;
+  });
+
+  ["pointerup","pointercancel","pointerleave"].forEach(event => {
+    btn.addEventListener(event, () => {
+      keys[direction] = false;
+    });
+  });
+});
+
+window.addEventListener("keydown", e => {
+  if(e.key === "ArrowUp" || e.key === "w") keys.up = true;
+  if(e.key === "ArrowDown" || e.key === "s") keys.down = true;
+  if(e.key === "ArrowLeft" || e.key === "a") keys.left = true;
+  if(e.key === "ArrowRight" || e.key === "d") keys.right = true;
+  if(e.key === " ") shoot();
+});
+
+window.addEventListener("keyup", e => {
+  if(e.key === "ArrowUp" || e.key === "w") keys.up = false;
+  if(e.key === "ArrowDown" || e.key === "s") keys.down = false;
+  if(e.key === "ArrowLeft" || e.key === "a") keys.left = false;
+  if(e.key === "ArrowRight" || e.key === "d") keys.right = false;
+});
+
+function animate() {
+  requestAnimationFrame(animate);
+
+  const speed = 0.09;
+
+  if(keys.up) player.position.z -= speed;
+  if(keys.down) player.position.z += speed;
+  if(keys.left) player.position.x -= speed;
+  if(keys.right) player.position.x += speed;
+
+  player.position.x = THREE.MathUtils.clamp(
+    player.position.x,-6,6
+  );
+  player.position.z = THREE.MathUtils.clamp(
+    player.position.z,-10,10
+  );
+
+  if(shooting) {
+    const oldZ = ball.position.z;
+
+    velocity.y -= 9.8 * 0.016;
+    ball.position.addScaledVector(velocity,0.016);
+
+    if(!scored && oldZ > -7.65 && ball.position.z <= -7.65) {
+      const distance = Math.hypot(
+        ball.position.x,
+        ball.position.y - 3.1
+      );
+
+      if(distance < 0.55) {
+        points++;
+        document.getElementById("points").textContent = points;
+        scored = true;
+      }
+    }
+
+    if(ball.position.y < 0.25 || ball.position.z < -15) {
+      shooting = false;
+    }
+  }
+
+  updateBall();
+  renderer.render(scene,camera);
+}
+
+animate();
+
+window.addEventListener("resize", () => {
+  camera.aspect = innerWidth / innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth,innerHeight);
+});
+</script>
+</body>
+</html>
